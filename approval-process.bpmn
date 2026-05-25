@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" targetNamespace="http://bpmn.io/schema/bpmn">
+  <process id="employee-onboarding" name="Employee Onboarding" isExecutable="true" camunda:historyTimeToLive="30">
+    <startEvent id="StartEvent_1" name="New Employee Joined">
+      <outgoing>Flow_start_to_hr</outgoing>
+    </startEvent>
+    <userTask id="Task_HRChecklist" name="HR Checklist" camunda:candidateGroups="hr-officers">
+      <extensionElements>
+        <camunda:formData>
+          <camunda:formField id="employeeFirstName" label="First Name" type="string" />
+          <camunda:formField id="employeeLastName" label="Last Name" type="string" />
+          <camunda:formField id="employeeEmail" label="Work Email" type="string" />
+          <camunda:formField id="department" label="Department" type="string" />
+          <camunda:formField id="startDate" label="Start Date" type="date" />
+          <camunda:formField id="position" label="Job Position" type="string" />
+          <camunda:formField id="equipmentNeeded" label="Equipment Needed" type="string" />
+        </camunda:formData>
+      </extensionElements>
+      <incoming>Flow_start_to_hr</incoming>
+      <outgoing>Flow_hr_to_provision</outgoing>
+    </userTask>
+    <scriptTask id="Task_ProvisionIT" name="Provision IT Accounts" scriptFormat="groovy">
+      <incoming>Flow_hr_to_provision</incoming>
+      <outgoing>Flow_provision_to_manager</outgoing>
+      <script>
+        def employeeEmail     = execution.getVariable("employeeEmail")
+        def employeeFirstName = execution.getVariable("employeeFirstName")
+        def employeeLastName  = execution.getVariable("employeeLastName")
+        def department        = execution.getVariable("department")
+
+        // Stub: create Active Directory account
+        log.info("Creating AD account for: ${employeeFirstName} ${employeeLastName}")
+        execution.setVariable("adAccountCreated", true)
+
+        // Stub: provision email mailbox
+        log.info("Provisioning mailbox for: ${employeeEmail}")
+        execution.setVariable("mailboxProvisioned", true)
+
+        // Stub: assign software licenses based on department
+        log.info("Assigning licenses for department: ${department}")
+        execution.setVariable("licensesAssigned", true)
+
+        log.info("IT provisioning completed successfully for ${employeeEmail}")
+      </script>
+    </scriptTask>
+    <userTask id="Task_ManagerApproval" name="Manager Approval" camunda:candidateGroups="managers">
+      <extensionElements>
+        <camunda:formData>
+          <camunda:formField id="managerComment" label="Manager Comment" type="string" />
+          <camunda:formField id="approvalDecision" label="Decision" type="enum">
+            <camunda:value id="approved" name="Approved" />
+            <camunda:value id="rejected" name="Rejected" />
+          </camunda:formField>
+        </camunda:formData>
+      </extensionElements>
+      <incoming>Flow_provision_to_manager</incoming>
+      <outgoing>Flow_manager_to_gateway</outgoing>
+    </userTask>
+    <exclusiveGateway id="Gateway_ApprovalDecision" name="Approved?">
+      <incoming>Flow_manager_to_gateway</incoming>
+      <outgoing>Flow_approved</outgoing>
+      <outgoing>Flow_rejected</outgoing>
+    </exclusiveGateway>
+    <userTask id="Task_ITHandover" name="IT Handover" camunda:candidateGroups="it-support">
+      <extensionElements>
+        <camunda:formData>
+          <camunda:formField id="laptopSerialNumber" label="Laptop Serial Number" type="string" />
+          <camunda:formField id="accessCardNumber" label="Access Card Number" type="string" />
+          <camunda:formField id="accountsHandedOver" label="Accounts Handed Over" type="boolean" />
+          <camunda:formField id="itHandoverNotes" label="Handover Notes" type="string" />
+        </camunda:formData>
+      </extensionElements>
+      <incoming>Flow_approved</incoming>
+      <outgoing>Flow_handover_to_welcome</outgoing>
+    </userTask>
+    <scriptTask id="Task_WelcomeNotification" name="Send Welcome Notification" scriptFormat="groovy">
+      <incoming>Flow_handover_to_welcome</incoming>
+      <outgoing>Flow_welcome_to_end</outgoing>
+      <script>
+        def employeeEmail     = execution.getVariable("employeeEmail")
+        def employeeFirstName = execution.getVariable("employeeFirstName")
+        def employeeLastName  = execution.getVariable("employeeLastName")
+        def startDate         = execution.getVariable("startDate")
+        def department        = execution.getVariable("department")
+
+        // Stub: build welcome email body
+        def emailBody = """
+Dear ${employeeFirstName} ${employeeLastName},
+Welcome to the company! Your onboarding has been approved.
+Department : ${department}
+Start Date : ${startDate}
+Your IT accounts have been provisioned. Please check your inbox.
+Best regards, HR Team
+        """.stripIndent()
+
+        // Stub: send via email service (e.g. SendGrid / SMTP)
+        // emailService.send(to: employeeEmail, subject: "Welcome!", body: emailBody)
+        log.info("Welcome notification sent successfully to ${employeeEmail}")
+        execution.setVariable("welcomeEmailSent", true)
+      </script>
+    </scriptTask>
+    <scriptTask id="Task_RejectionNotification" name="Send Rejection Notification" scriptFormat="groovy">
+      <incoming>Flow_rejected</incoming>
+      <outgoing>Flow_rejection_to_end</outgoing>
+      <script>
+        def employeeFirstName = execution.getVariable("employeeFirstName")
+        def employeeLastName  = execution.getVariable("employeeLastName")
+        def managerComment    = execution.getVariable("managerComment")
+
+        // Stub: build rejection notification body
+        def notificationBody = """
+Onboarding for ${employeeFirstName} ${employeeLastName} has been REJECTED.
+Manager Comment: ${managerComment}
+Please review and take necessary action.
+        """.stripIndent()
+
+        // Stub: send via internal notification system to hr-officers group
+        // notificationService.send(to: "hr-officers", message: notificationBody)
+        log.info("Rejection notification sent to HR officers group")
+        execution.setVariable("rejectionNotificationSent", true)
+      </script>
+    </scriptTask>
+    <endEvent id="EndEvent_Approved" name="Onboarding Completed">
+      <incoming>Flow_welcome_to_end</incoming>
+    </endEvent>
+    <endEvent id="EndEvent_Rejected" name="Onboarding Rejected">
+      <incoming>Flow_rejection_to_end</incoming>
+    </endEvent>
+    <sequenceFlow id="Flow_start_to_hr" sourceRef="StartEvent_1" targetRef="Task_HRChecklist" />
+    <sequenceFlow id="Flow_hr_to_provision" sourceRef="Task_HRChecklist" targetRef="Task_ProvisionIT" />
+    <sequenceFlow id="Flow_provision_to_manager" sourceRef="Task_ProvisionIT" targetRef="Task_ManagerApproval" />
+    <sequenceFlow id="Flow_manager_to_gateway" sourceRef="Task_ManagerApproval" targetRef="Gateway_ApprovalDecision" />
+    <sequenceFlow id="Flow_approved" name="Approved" sourceRef="Gateway_ApprovalDecision" targetRef="Task_ITHandover">
+      <conditionExpression xsi:type="tFormalExpression">
+        ${approvalDecision == 'approved'}
+      </conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_rejected" name="Rejected" sourceRef="Gateway_ApprovalDecision" targetRef="Task_RejectionNotification">
+      <conditionExpression xsi:type="tFormalExpression">
+        ${approvalDecision == 'rejected'}
+      </conditionExpression>
+    </sequenceFlow>
+    <sequenceFlow id="Flow_handover_to_welcome" sourceRef="Task_ITHandover" targetRef="Task_WelcomeNotification" />
+    <sequenceFlow id="Flow_welcome_to_end" sourceRef="Task_WelcomeNotification" targetRef="EndEvent_Approved" />
+    <sequenceFlow id="Flow_rejection_to_end" sourceRef="Task_RejectionNotification" targetRef="EndEvent_Rejected" />
+  </process>
+  <bpmndi:BPMNDiagram id="BPMNDiagram_employee-onboarding">
+    <bpmndi:BPMNPlane id="BPMNPlane_employee-onboarding" bpmnElement="employee-onboarding">
+      <bpmndi:BPMNShape id="StartEvent_1_di" bpmnElement="StartEvent_1">
+        <dc:Bounds x="57" y="52" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_HRChecklist_di" bpmnElement="Task_HRChecklist">
+        <dc:Bounds x="175" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ProvisionIT_di" bpmnElement="Task_ProvisionIT">
+        <dc:Bounds x="325" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ManagerApproval_di" bpmnElement="Task_ManagerApproval">
+        <dc:Bounds x="475" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Gateway_ApprovalDecision_di" bpmnElement="Gateway_ApprovalDecision" isMarkerVisible="true">
+        <dc:Bounds x="650" y="45" width="50" height="50" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_ITHandover_di" bpmnElement="Task_ITHandover">
+        <dc:Bounds x="775" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_WelcomeNotification_di" bpmnElement="Task_WelcomeNotification">
+        <dc:Bounds x="925" y="30" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Approved_di" bpmnElement="EndEvent_Approved">
+        <dc:Bounds x="1107" y="52" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Task_RejectionNotification_di" bpmnElement="Task_RejectionNotification">
+        <dc:Bounds x="775" y="170" width="100" height="80" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="EndEvent_Rejected_di" bpmnElement="EndEvent_Rejected">
+        <dc:Bounds x="957" y="192" width="36" height="36" />
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Flow_start_to_hr_di" bpmnElement="Flow_start_to_hr">
+        <di:waypoint x="93" y="70" />
+        <di:waypoint x="175" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_hr_to_provision_di" bpmnElement="Flow_hr_to_provision">
+        <di:waypoint x="275" y="70" />
+        <di:waypoint x="325" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_provision_to_manager_di" bpmnElement="Flow_provision_to_manager">
+        <di:waypoint x="425" y="70" />
+        <di:waypoint x="475" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_manager_to_gateway_di" bpmnElement="Flow_manager_to_gateway">
+        <di:waypoint x="575" y="70" />
+        <di:waypoint x="650" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_approved_di" bpmnElement="Flow_approved">
+        <di:waypoint x="700" y="70" />
+        <di:waypoint x="775" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rejected_di" bpmnElement="Flow_rejected">
+        <di:waypoint x="675" y="95" />
+        <di:waypoint x="675" y="210" />
+        <di:waypoint x="775" y="210" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_handover_to_welcome_di" bpmnElement="Flow_handover_to_welcome">
+        <di:waypoint x="875" y="70" />
+        <di:waypoint x="925" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_welcome_to_end_di" bpmnElement="Flow_welcome_to_end">
+        <di:waypoint x="1025" y="70" />
+        <di:waypoint x="1107" y="70" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Flow_rejection_to_end_di" bpmnElement="Flow_rejection_to_end">
+        <di:waypoint x="875" y="210" />
+        <di:waypoint x="957" y="210" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</definitions>
